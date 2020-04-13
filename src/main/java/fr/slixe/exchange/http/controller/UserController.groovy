@@ -10,11 +10,16 @@ import com.google.inject.Inject;
 import fr.litarvan.paladin.http.Controller;
 import fr.litarvan.paladin.http.routing.RequestParams
 import fr.slixe.exchange.service.ArangoDatabaseService
+import fr.slixe.exchange.service.FundsService
+import fr.slixe.exchange.service.MarketService
+import fr.slixe.exchange.structure.ActiveOrder.Type
 import fr.slixe.exchange.structure.Balance
 import fr.slixe.exchange.structure.Currency
-import fr.slixe.exchange.structure.Status
+import fr.slixe.exchange.structure.Deposit
+import fr.slixe.exchange.structure.Market
 import fr.slixe.exchange.structure.User
 import fr.slixe.exchange.structure.UserAddress
+import fr.slixe.exchange.structure.UserDeposit
 import fr.slixe.exchange.structure.UserWithdraw
 import fr.slixe.exchange.structure.Withdraw
 
@@ -25,6 +30,12 @@ public class UserController extends Controller {
 	@Inject
 	private ArangoDatabaseService db
 
+	@Inject
+	private FundsService funds
+	
+	@Inject
+	private MarketService market
+	
 	def balances(User user)
 	{
 		Balance balance = db.getUserBalance(user)
@@ -39,10 +50,7 @@ public class UserController extends Controller {
 
 	def debug(User user)
 	{
-		db.updateWithdraw(user, Currency.BTC, new Withdraw(UUID.randomUUID(), "Hash", new BigDecimal("50"), System.currentTimeMillis(), Status.SUCCESS))
-		db.updateWithdraw(user, Currency.BTC, new Withdraw(UUID.randomUUID(), "H4sh", new BigDecimal("10"), System.currentTimeMillis(), Status.PENDING))
-		db.updateWithdraw(user, Currency.DERO, new Withdraw(UUID.randomUUID(), "H4sh", new BigDecimal("5000"), System.currentTimeMillis(), Status.PENDING))
-
+		funds.addFunds(user, Currency.DERO, new BigDecimal("500"), false)
 		
 		[
 			message: "OK"
@@ -96,6 +104,39 @@ public class UserController extends Controller {
 
 			[
 				withdrawals: response //userWithdraw.map
+			]
+		}
+	}
+
+	@RequestParams(required = [], optional = ["fr.slixe.exchange.structure.Currency:currency"])
+	def deposits(Optional<Currency> optCurrency, User user)
+	{
+		if (optCurrency.isPresent()) {
+			Currency currency = optCurrency.get();
+			List<Deposit> deposits = db.getUserDepositCurrency(user, currency)
+
+			[
+				deposits: deposits
+			]
+		} else {
+			UserDeposit userDeposit = db.getUserDeposit(user)
+			Map<Currency, List<Deposit>> response = new HashMap<>()
+s
+			for (Entry<Currency, Map<UUID, Deposit>> e : userDeposit.map.entrySet())
+			{
+				List<Deposit> list = new ArrayList<>()
+				Map<UUID, Deposit> m = e.getValue()
+
+				for (Deposit w : m.values())
+				{
+					list.add(w)
+				}
+
+				response.put(e.getKey(), list)
+			}
+
+			[
+				deposits: response //userWithdraw.map
 			]
 		}
 	}

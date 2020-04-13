@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import fr.litarvan.paladin.http.AcceptCrossOriginRequestsMiddleware
 import fr.slixe.exchange.http.AuthMiddleware
 import fr.slixe.exchange.http.controller.AuthController
+import fr.slixe.exchange.http.controller.MarketController
 import fr.slixe.exchange.http.controller.UserController
 
 [
@@ -15,7 +16,8 @@ import fr.slixe.exchange.http.controller.UserController
      */
     controllers: [
         user: UserController,
-		auth: AuthController
+		auth: AuthController,
+		market: MarketController
     ],
 
 	routeMiddlewares: [

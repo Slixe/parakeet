@@ -13,15 +13,19 @@ import com.arangodb.ArangoCursor;
 import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.model.DocumentCreateOptions;
+import com.arangodb.model.DocumentDeleteOptions;
 import com.arangodb.util.MapBuilder;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 
 import fr.litarvan.paladin.PaladinConfig;
+import fr.slixe.exchange.structure.ActiveOrder;
 import fr.slixe.exchange.structure.Address;
 import fr.slixe.exchange.structure.Balance;
 import fr.slixe.exchange.structure.Currency;
 import fr.slixe.exchange.structure.Deposit;
+import fr.slixe.exchange.structure.Market;
+import fr.slixe.exchange.structure.OrderMap;
 import fr.slixe.exchange.structure.User;
 import fr.slixe.exchange.structure.UserAddress;
 import fr.slixe.exchange.structure.UserDeposit;
@@ -44,6 +48,9 @@ public class ArangoDatabaseService {
 	private ArangoCollection addresses;
 	private ArangoCollection withdrawals;
 	private ArangoCollection deposits;
+	private ArangoCollection orders;
+	private ArangoCollection activeOrders;
+	private ArangoCollection completedOrders;
 
 	public void start()
 	{
@@ -70,7 +77,10 @@ public class ArangoDatabaseService {
 		this.addresses = this.db.collection("addresses");
 		this.withdrawals = this.db.collection("withdrawals");
 		this.deposits = this.db.collection("deposits");
-	
+		this.orders = this.db.collection("orders");
+		this.activeOrders = this.db.collection("activeOrders");
+		this.completedOrders = this.db.collection("completedOrders");
+
 		if (!this.users.exists()) {
 			this.users.create();
 		}
@@ -85,6 +95,15 @@ public class ArangoDatabaseService {
 		}
 		if (!this.deposits.exists()) {
 			this.deposits.create();
+		}
+		if (!this.orders.exists()) {
+			this.orders.create();
+		}
+		if (!this.activeOrders.exists()) {
+			this.activeOrders.create();
+		}
+		if (!this.completedOrders.exists()) {
+			this.completedOrders.create();
 		}
 
 		log.info("Connected to ArangoDB");
@@ -187,11 +206,13 @@ public class ArangoDatabaseService {
 		UserAddress userAddress = createUserAddress();
 		UserWithdraw userWithdraw = createUserWithdraw();
 		UserDeposit userDeposit = createUserDeposit();
+		OrderMap orderMap = createOrderMap();
 
 		user.setBalanceKey(balance.getKey());
 		user.setAddressesKey(userAddress.getKey());
 		user.setWithdrawKey(userWithdraw.getKey());
 		user.setDepositKey(userDeposit.getKey());
+		user.setOrderMapKey(orderMap.getKey());
 
 		String userKey = getKeyFromInsert(this.users, user);
 		user.setKey(userKey);
@@ -222,7 +243,19 @@ public class ArangoDatabaseService {
 	{
 		return this.funds.getDocument(user.getBalanceKey(), Balance.class);
 	}
-	
+
+	public BigDecimal getBalanceFor(User user, Currency currency, boolean frozenFunds)
+	{
+		String query = "RETURN DOCUMENT('funds', @key).@type.@currency";
+		Map<String, Object> vars = new MapBuilder()
+				.put("key", user.getBalanceKey())
+				.put("type", frozenFunds ? "frozenFunds" : "funds")
+				.put("currency", currency)
+				.get();
+
+		return first(query, vars, BigDecimal.ZERO);
+	}
+
 	public Balance createBalance()
 	{
 		Balance balance = new Balance();
@@ -314,7 +347,9 @@ public class ArangoDatabaseService {
 		if (cursor.hasNext()) {
 			Map<String, Withdraw> map = cursor.next();
 
-			list.addAll(map.values());
+			if (map != null) {
+				list.addAll(map.values());
+			}
 		}
 
 		return list;
@@ -353,12 +388,33 @@ public class ArangoDatabaseService {
 		return this.deposits.getDocument(user.getDepositKey(), UserDeposit.class);
 	}
 
+	public List<Deposit> getUserDepositCurrency(User user, Currency currency)
+	{
+		final List<Deposit> list = new ArrayList<>();
+
+		String query = "RETURN DOCUMENT('deposits', @key).map.@currency";
+		Map<String, Object> vars = new MapBuilder()
+				.put("key", user.getDepositKey())
+				.put("currency", currency)
+				.get();
+		
+		ArangoCursor<Map> cursor = db.query(query, vars, null, Map.class);
+		
+		if (cursor.hasNext()) {
+			Map<String, Deposit> map = cursor.next();
+
+			list.addAll(map.values());
+		}
+
+		return list;
+	}
+
 	public UserDeposit createUserDeposit()
 	{
-		UserDeposit userList = new UserDeposit();
-		userList.setKey(getKeyFromInsert(this.deposits, userList));
+		UserDeposit userDeposit = new UserDeposit();
+		userDeposit.setKey(getKeyFromInsert(this.deposits, userDeposit));
 
-		return userList;
+		return userDeposit;
 	}
 
 	public void updateUserDeposit(UserDeposit deposit)
@@ -377,5 +433,115 @@ public class ArangoDatabaseService {
 				.get();
 
 		db.query(query, vars, null, null);
+	}
+
+	// ORDERS
+
+	/*
+
+	activeOrders && completedOrders: { 
+		BTC_DERO: ["order1", "order2", "order3"],
+		BTC_ETH: ["order5", "order10"]
+	}
+
+	 */
+
+	private OrderMap createOrderMap()
+	{
+		OrderMap orderMap = new OrderMap();
+		orderMap.setKey(getKeyFromInsert(this.orders, orderMap));
+
+		return orderMap;
+	}
+
+	public OrderMap getOrderMap(User user)
+	{		
+		return this.orders.getDocument(user.getOrderMapKey(), OrderMap.class);
+	}
+
+	public void addActiveOrderToMap(User user, Market market, ActiveOrder order)
+	{
+		String query = "LET array = DOCUMENT('orders', @key).activeOrders.@market "
+				+ "UPDATE @key WITH { activeOrders: { @market: APPEND(array, [@orderKey]) } } IN orders";
+		Map<String, Object> vars = new MapBuilder()
+				.put("key", user.getOrderMapKey())
+				.put("market", market)
+				.put("orderKey", order.getKey())
+				.get();
+
+		db.query(query, vars, null, null);
+	}
+
+	public void removeActiveOrderFromMap(User user, Market market, ActiveOrder order)
+	{
+		String query = "LET array = DOCUMENT('orders', @key).activeOrders.@market "
+				+ "UPDATE @key WITH { activeOrders: { @market: REMOVE_VALUE(array, @orderKey) } } IN orders";
+		Map<String, Object> vars = new MapBuilder()
+				.put("key", user.getOrderMapKey())
+				.put("market", market)
+				.put("orderKey", order.getKey())
+				.get();
+
+		db.query(query, vars, null, null);
+	}
+
+	public ActiveOrder addActiveOrder(ActiveOrder order)
+	{
+		order.setKey(getKeyFromInsert(this.activeOrders, order));
+
+		return order;
+	}
+
+	public ActiveOrder removeActiveOrder(String orderKey)
+	{
+		return this.activeOrders.deleteDocument(orderKey, ActiveOrder.class, new DocumentDeleteOptions().returnOld(true)).getOld();
+	}
+
+	public boolean hasActiveOrder(User user, String orderKey) //TODO verfiy
+	{
+		String query = "RETURN NOT_NULL(DOCUMENT('orders', @key).activeOrders.@market.@orderKey)";
+		Map<String, Object> vars = new MapBuilder()
+				.put("key", user.getOrderMapKey())
+				.put("orderKey", orderKey)
+				.get();
+
+		return first(query, vars, false);
+	}
+
+	public List<ActiveOrder> getActiveOrders(User user, Market market)
+	{
+		List<ActiveOrder> orders = new ArrayList<>();
+		String query = "LET orders = DOCUMENT('orders', @key).activeOrders.@market "
+				+ "FILTER orders != null FOR o IN orders RETURN DOCUMENT('activeOrders', o)";
+		Map<String, Object> vars = new MapBuilder()
+				.put("key", user.getOrderMapKey())
+				.put("market", market)
+				.get();
+
+		List<ActiveOrder> list = db.query(query, vars, null, ActiveOrder.class).asListRemaining();
+
+		if (list != null) {
+			orders.addAll(list);
+		}
+
+		return orders;
+	}
+
+	public List<ActiveOrder> getActiveOrders(User user)
+	{
+		List<ActiveOrder> orders = new ArrayList<>();
+		String query = "LET markets = DOCUMENT('orders', @key).activeOrders "
+				+ "FOR m IN VALUES(markets) FOR o IN m RETURN DOCUMENT('activeOrders', o)";
+		Map<String, Object> vars = new MapBuilder()
+				.put("key", user.getOrderMapKey())
+				.get();
+
+		List<ActiveOrder> list = db.query(query, vars, null, ActiveOrder.class).asListRemaining();
+
+		if (list != null) {
+			orders.addAll(list);
+		}
+
+		return orders;
 	}
 }

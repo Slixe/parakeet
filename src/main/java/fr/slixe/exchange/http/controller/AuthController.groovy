@@ -17,6 +17,12 @@ import fr.slixe.exchange.structure.User
 
 public class AuthController extends Controller {
 
+	/* Password Policy:
+	 * At least 8 chars
+	 * Contains at least one digit
+	 * Contains at least one lower char and one upper char
+	 */
+	private static final Pattern passwordRegex = Pattern.compile("^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=\\S+\$).{8,}\$")
 	private static final Pattern emailRegex = Pattern.compile("^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,6}\$", Pattern.CASE_INSENSITIVE)
 	private static final Pattern usernameRegex = Pattern.compile("^[a-z0-9_-]{3,16}\$", Pattern.CASE_INSENSITIVE)
 	private static final Logger log = LoggerFactory.getLogger("HTTP Auth Controller")
@@ -58,6 +64,10 @@ public class AuthController extends Controller {
 	@RequestParams(required = ["username", "email", "password"])
 	def register(String username, String email, String password, Session session)
 	{
+		if (!passwordRegex.matcher(password).matches()) {
+			throw new InvalidParameterException("Invalid Password! Please see the Password Policy.")
+		}
+
 		if (password.length() > 64) {
 			throw new InvalidParameterException("Password is too long!")
 		}
@@ -70,7 +80,7 @@ public class AuthController extends Controller {
 			throw new InvalidParameterException("Username is not valid");
 		}
 
-		User user = authService.register(username, email, password)
+		User user = authService.register(username, email.toLowerCase(), password)
 
 		if (user == null) {
 			log.error("An error has occured in AuthController#register! User is null!")

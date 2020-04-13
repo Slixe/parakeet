@@ -6,8 +6,17 @@ group '/api/user', {
 	get '/addresses'
 	get '/debug'
 	get '/withdrawals'
+	get '/deposits'
 }, [
 	action: 'user',
+	middleware: 'auth'
+]
+
+group '/api/market', {
+	get '/activeOrders'
+	post '/createOrder'
+}, [
+	action: 'market',
 	middleware: 'auth'
 ]
 

@@ -11,6 +11,7 @@ public class User {
 	private String addressesKey;
 	private String withdrawKey;
 	private String depositKey;
+	private String orderMapKey;
 	private String username;
 	private String email;
 	private String hashedPassword;
@@ -74,6 +75,16 @@ public class User {
 	public void setDepositKey(String depositKey)
 	{
 		this.depositKey = depositKey;
+	}
+
+	public String getOrderMapKey()
+	{
+		return orderMapKey;
+	}
+
+	public void setOrderMapKey(String orderMapKey)
+	{
+		this.orderMapKey = orderMapKey;
 	}
 
 	public String getUsername()
