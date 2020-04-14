@@ -8,7 +8,7 @@ import com.google.common.hash.Hashing;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 
-import fr.slixe.exchange.http.InvalidParameterException;
+import fr.slixe.exchange.http.controller.ServiceException;
 import fr.slixe.exchange.structure.User;
 
 @Singleton
@@ -54,14 +54,14 @@ public class AuthService {
 		return login(db.getUserByEmail(email), password);
 	}
 	
-	public User register(String username, String email, String password) throws InvalidParameterException
+	public User register(String username, String email, String password) throws ServiceException
 	{
 		if (db.usernameExist(username)) {
-			throw new InvalidParameterException("Username '" + username + "' already exist.");
+			throw new ServiceException("Username '" + username + "' already exist.");
 		}
 
 		if (db.emailExist(email)) {
-			throw new InvalidParameterException("Email '" + email + "' already exist.");
+			throw new ServiceException("Email '" + email + "' already exist.");
 		}
 
 		String hashedPassword = hash(password);

@@ -51,7 +51,7 @@ public class UserController extends Controller {
 	def debug(User user)
 	{
 		funds.addFunds(user, Currency.DERO, new BigDecimal("500"), false)
-		
+		funds.addFunds(user, Currency.BTC, new BigDecimal("500"), false)
 		[
 			message: "OK"
 		]

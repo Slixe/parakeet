@@ -17,15 +17,15 @@ import fr.slixe.exchange.structure.User
 import fr.slixe.exchange.structure.ActiveOrder.Type
 
 public class MarketController extends Controller {
-	
+
 	private static final Logger log = LoggerFactory.getLogger("HTTP Market Controller")
-	
+
 	@Inject
 	private ArangoDatabaseService db
 
 	@Inject
 	private FundsService funds
-	
+
 	@Inject
 	private MarketService market
 
@@ -45,6 +45,14 @@ public class MarketController extends Controller {
 		]
 	}
 
+	@RequestParams(required = ["market"])
+	def details(Market market)
+	{
+		[
+			message: "TODO 24h infos $market"
+		]
+	}
+
 	@JsonBody
 	@RequestParams(required = ["market", "amount", "price", "type"])
 	def createOrder(Market market, BigDecimal amount, BigDecimal price, Type type, User user)
@@ -57,6 +65,17 @@ public class MarketController extends Controller {
 
 		[
 			order: order
+		]
+	}
+
+	@JsonBody
+	@RequestParams(required = ["market", "orderKey"])
+	def cancelOrder(Market market, String orderKey, User user)
+	{
+		this.market.cancelOrder(user, market, orderKey)
+
+		[
+			success: true
 		]
 	}
 }

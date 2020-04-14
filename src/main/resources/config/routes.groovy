@@ -14,7 +14,9 @@ group '/api/user', {
 
 group '/api/market', {
 	get '/activeOrders'
+	get '/details'
 	post '/createOrder'
+	post '/cancelOrder'
 }, [
 	action: 'market',
 	middleware: 'auth'

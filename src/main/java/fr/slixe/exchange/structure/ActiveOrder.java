@@ -9,20 +9,22 @@ public class ActiveOrder {
 	@DocumentField(DocumentField.Type.KEY)
 	private String key;
 	private Market market;
-	private BigDecimal amount; // 15 DERO
-	private BigDecimal price; // 0.5 BTC per DERO
-	private BigDecimal total; // 0.5 * 15 = 7.5
+	private BigDecimal amount;
+	private BigDecimal price;
 	private Type type;
+	private String userKey;
+	private long createdAt;
 
 	public ActiveOrder() {}
 
-	public ActiveOrder(Market market, BigDecimal amount, BigDecimal price, BigDecimal total, Type type)
+	public ActiveOrder(Market market, BigDecimal amount, BigDecimal price, Type type, String userKey, long createdAt)
 	{
 		this.market = market;
 		this.amount = amount;
 		this.price = price;
-		this.total = total;
 		this.type = type;
+		this.userKey = userKey;
+		this.createdAt = createdAt;
 	}
 
 	public String getKey()
@@ -67,12 +69,7 @@ public class ActiveOrder {
 
 	public BigDecimal getTotal()
 	{
-		return total;
-	}
-
-	public void setTotal(BigDecimal total)
-	{
-		this.total = total;
+		return price.multiply(amount);
 	}
 
 	public Type getType()
@@ -83,6 +80,31 @@ public class ActiveOrder {
 	public void setType(Type type)
 	{
 		this.type = type;
+	}
+
+	public String getUserKey()
+	{
+		return userKey;
+	}
+
+	public void setUserKey(String userKey)
+	{
+		this.userKey = userKey;
+	}
+
+	public long createdAt()
+	{
+		return createdAt;
+	}
+
+	public void setCreatedAt(long createdAt)
+	{
+		this.createdAt = createdAt;
+	}
+
+	public Currency getCurrency()
+	{
+		return type == Type.BUY ? market.getFirst() : market.getSecond();
 	}
 
 	public static enum Type {

@@ -20,6 +20,7 @@ import com.google.inject.Singleton;
 
 import fr.litarvan.paladin.PaladinConfig;
 import fr.slixe.exchange.structure.ActiveOrder;
+import fr.slixe.exchange.structure.ActiveOrder.Type;
 import fr.slixe.exchange.structure.Address;
 import fr.slixe.exchange.structure.Balance;
 import fr.slixe.exchange.structure.Currency;
@@ -472,17 +473,22 @@ public class ArangoDatabaseService {
 		db.query(query, vars, null, null);
 	}
 
-	public void removeActiveOrderFromMap(User user, Market market, ActiveOrder order)
+	public void removeActiveOrderFromMap(User user, ActiveOrder order)
 	{
 		String query = "LET array = DOCUMENT('orders', @key).activeOrders.@market "
 				+ "UPDATE @key WITH { activeOrders: { @market: REMOVE_VALUE(array, @orderKey) } } IN orders";
 		Map<String, Object> vars = new MapBuilder()
 				.put("key", user.getOrderMapKey())
-				.put("market", market)
+				.put("market", order.getMarket())
 				.put("orderKey", order.getKey())
 				.get();
 
 		db.query(query, vars, null, null);
+	}
+
+	public ActiveOrder getActiveOrder(String orderKey)
+	{
+		return this.activeOrders.getDocument(orderKey, ActiveOrder.class);
 	}
 
 	public ActiveOrder addActiveOrder(ActiveOrder order)
@@ -492,16 +498,47 @@ public class ArangoDatabaseService {
 		return order;
 	}
 
+	public void updateActiveOrder(ActiveOrder ao)
+	{
+		this.activeOrders.updateDocument(ao.getKey(), ao);
+	}
+
+	public void updateActiveOrder(String orderKey, String field, Object value)
+	{
+		String query = "UPDATE @key WITH { @field: @value } IN activeOrders";
+		Map<String, Object> vars = new MapBuilder()
+				.put("key", orderKey)
+				.put("field", field)
+				.put("value", value)
+				.get();
+
+		db.query(query, vars, null, null);
+	}
+
 	public ActiveOrder removeActiveOrder(String orderKey)
 	{
 		return this.activeOrders.deleteDocument(orderKey, ActiveOrder.class, new DocumentDeleteOptions().returnOld(true)).getOld();
 	}
 
-	public boolean hasActiveOrder(User user, String orderKey) //TODO verfiy
+	public ActiveOrder getActiveOrder(User user, String orderKey)
 	{
-		String query = "RETURN NOT_NULL(DOCUMENT('orders', @key).activeOrders.@market.@orderKey)";
+		String query = "LET ok = POSITION(DOCUMENT('orders', @key).activeOrders.@market, @orderKey) "
+				+ "FILTER ok RETURN DOCUMENT('activeOrders', @orderKey)";
+
 		Map<String, Object> vars = new MapBuilder()
 				.put("key", user.getOrderMapKey())
+				.put("orderKey", orderKey)
+				.get();
+
+		return first(query, ActiveOrder.class, vars);
+	}
+
+	public boolean hasActiveOrder(User user, Market market, String orderKey)
+	{
+		String query = "RETURN POSITION(DOCUMENT('orders', @key).activeOrders.@market, @orderKey)";
+		Map<String, Object> vars = new MapBuilder()
+				.put("key", user.getOrderMapKey())
+				.put("market", market)
 				.put("orderKey", orderKey)
 				.get();
 
@@ -538,6 +575,25 @@ public class ArangoDatabaseService {
 
 		List<ActiveOrder> list = db.query(query, vars, null, ActiveOrder.class).asListRemaining();
 
+		if (list != null) {
+			orders.addAll(list);
+		}
+
+		return orders;
+	}
+
+	public List<ActiveOrder> getInverseActiveOrders(Market market, Type type, BigDecimal price)
+	{
+		List<ActiveOrder> orders = new ArrayList<>();
+		String query = "FOR o IN activeOrders FILTER o.market == @market FILTER o.type != @type FILTER o.price == @price SORT o.createdAt RETURN o";
+		Map<String, Object> vars = new MapBuilder()
+				.put("market", market)
+				.put("type", type)
+				.put("price", price)
+				.get();
+
+		List<ActiveOrder> list = db.query(query, vars, null, ActiveOrder.class).asListRemaining();
+		log.info("Inverse Orders: {}", list);
 		if (list != null) {
 			orders.addAll(list);
 		}
