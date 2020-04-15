@@ -20,13 +20,14 @@ import com.google.inject.Singleton;
 
 import fr.litarvan.paladin.PaladinConfig;
 import fr.slixe.exchange.structure.ActiveOrder;
-import fr.slixe.exchange.structure.ActiveOrder.Type;
 import fr.slixe.exchange.structure.Address;
 import fr.slixe.exchange.structure.Balance;
+import fr.slixe.exchange.structure.CompletedOrder;
 import fr.slixe.exchange.structure.Currency;
 import fr.slixe.exchange.structure.Deposit;
 import fr.slixe.exchange.structure.Market;
 import fr.slixe.exchange.structure.OrderMap;
+import fr.slixe.exchange.structure.OrderType;
 import fr.slixe.exchange.structure.User;
 import fr.slixe.exchange.structure.UserAddress;
 import fr.slixe.exchange.structure.UserDeposit;
@@ -582,10 +583,10 @@ public class ArangoDatabaseService {
 		return orders;
 	}
 
-	public List<ActiveOrder> getInverseActiveOrders(Market market, Type type, BigDecimal price)
+	public List<ActiveOrder> getInverseActiveOrders(Market market, OrderType type, BigDecimal price)
 	{
 		List<ActiveOrder> orders = new ArrayList<>();
-		String query = "FOR o IN activeOrders FILTER o.market == @market FILTER o.type != @type FILTER o.price == @price SORT o.createdAt RETURN o";
+		String query = "FOR o IN activeOrders FILTER o.market == @market FILTER o.type != @type FILTER o.price "+ (type == OrderType.SELL ? ">=" : "<=") + " @price SORT o.createdAt RETURN o";
 		Map<String, Object> vars = new MapBuilder()
 				.put("market", market)
 				.put("type", type)
@@ -593,11 +594,68 @@ public class ArangoDatabaseService {
 				.get();
 
 		List<ActiveOrder> list = db.query(query, vars, null, ActiveOrder.class).asListRemaining();
-		log.info("Inverse Orders: {}", list);
+
 		if (list != null) {
 			orders.addAll(list);
 		}
 
 		return orders;
+	}
+
+	public CompletedOrder addCompletedOrder(CompletedOrder order)
+	{
+		order.setKey(getKeyFromInsert(this.completedOrders, order));
+
+		return order;
+	}
+
+	public List<CompletedOrder> getCompletedOrders(User user, Market market)
+	{
+		List<CompletedOrder> orders = new ArrayList<>();
+		String query = "LET orders = DOCUMENT('orders', @key).completedOrders.@market "
+				+ "FILTER orders != null FOR o IN orders RETURN DOCUMENT('completedOrders', o)";
+		Map<String, Object> vars = new MapBuilder()
+				.put("key", user.getOrderMapKey())
+				.put("market", market)
+				.get();
+
+		List<CompletedOrder> list = db.query(query, vars, null, CompletedOrder.class).asListRemaining();
+
+		if (list != null) {
+			orders.addAll(list);
+		}
+
+		return orders;
+	}
+
+	public List<CompletedOrder> getCompletedOrders(User user)
+	{
+		List<CompletedOrder> orders = new ArrayList<>();
+		String query = "LET markets = DOCUMENT('orders', @key).completedOrders "
+				+ "FOR m IN VALUES(markets) FOR o IN m RETURN DOCUMENT('completedOrders', o)";
+		Map<String, Object> vars = new MapBuilder()
+				.put("key", user.getOrderMapKey())
+				.get();
+
+		List<CompletedOrder> list = db.query(query, vars, null, CompletedOrder.class).asListRemaining();
+
+		if (list != null) {
+			orders.addAll(list);
+		}
+
+		return orders;
+	}
+
+	public void addCompletedOrderToMap(User user, Market market, CompletedOrder order)
+	{
+		String query = "LET array = DOCUMENT('orders', @key).completedOrders.@market "
+				+ "UPDATE @key WITH { completedOrders: { @market: APPEND(array, [@orderKey]) } } IN orders";
+		Map<String, Object> vars = new MapBuilder()
+				.put("key", user.getOrderMapKey())
+				.put("market", market)
+				.put("orderKey", order.getKey())
+				.get();
+
+		db.query(query, vars, null, null);
 	}
 }

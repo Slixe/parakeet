@@ -14,6 +14,7 @@ group '/api/user', {
 
 group '/api/market', {
 	get '/activeOrders'
+	get '/completedOrders'
 	get '/details'
 	post '/createOrder'
 	post '/cancelOrder'

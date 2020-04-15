@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 import com.arangodb.entity.DocumentField;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
-public class ActiveOrder {
+public class CompletedOrder {
 
 	@DocumentField(DocumentField.Type.KEY)
 	private String key;
@@ -15,18 +15,16 @@ public class ActiveOrder {
 	private OrderType type;
 	@JsonIgnore
 	private String userKey;
-	private long createdAt;
+	private long completedAt;
 
-	public ActiveOrder() {}
-
-	public ActiveOrder(Market market, BigDecimal amount, BigDecimal price, OrderType type, String userKey, long createdAt)
+	public CompletedOrder(Market market, BigDecimal amount, BigDecimal price, OrderType type, String userKey, long completedAt)
 	{
 		this.market = market;
 		this.amount = amount;
 		this.price = price;
 		this.type = type;
 		this.userKey = userKey;
-		this.createdAt = createdAt;
+		this.completedAt = completedAt;
 	}
 
 	public String getKey()
@@ -74,11 +72,6 @@ public class ActiveOrder {
 		return type == OrderType.BUY ? amount.divide(price) : price.multiply(amount);
 	}
 
-	public BigDecimal getTotal(BigDecimal price)
-	{
-		return type == OrderType.BUY ? amount.divide(price) : price.multiply(amount);
-	}
-
 	public OrderType getType()
 	{
 		return type;
@@ -99,14 +92,14 @@ public class ActiveOrder {
 		this.userKey = userKey;
 	}
 
-	public long createdAt()
+	public long completedAt()
 	{
-		return createdAt;
+		return completedAt;
 	}
 
-	public void setCreatedAt(long createdAt)
+	public void setCompletedAt(long completedAt)
 	{
-		this.createdAt = createdAt;
+		this.completedAt = completedAt;
 	}
 
 	public Currency getCurrency()

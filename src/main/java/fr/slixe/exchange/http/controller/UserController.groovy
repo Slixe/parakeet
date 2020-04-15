@@ -12,11 +12,9 @@ import fr.litarvan.paladin.http.routing.RequestParams
 import fr.slixe.exchange.service.ArangoDatabaseService
 import fr.slixe.exchange.service.FundsService
 import fr.slixe.exchange.service.MarketService
-import fr.slixe.exchange.structure.ActiveOrder.Type
 import fr.slixe.exchange.structure.Balance
 import fr.slixe.exchange.structure.Currency
 import fr.slixe.exchange.structure.Deposit
-import fr.slixe.exchange.structure.Market
 import fr.slixe.exchange.structure.User
 import fr.slixe.exchange.structure.UserAddress
 import fr.slixe.exchange.structure.UserDeposit

@@ -13,8 +13,8 @@ import fr.slixe.exchange.service.ArangoDatabaseService
 import fr.slixe.exchange.service.FundsService
 import fr.slixe.exchange.service.MarketService
 import fr.slixe.exchange.structure.Market
+import fr.slixe.exchange.structure.OrderType
 import fr.slixe.exchange.structure.User
-import fr.slixe.exchange.structure.ActiveOrder.Type
 
 public class MarketController extends Controller {
 
@@ -45,6 +45,22 @@ public class MarketController extends Controller {
 		]
 	}
 
+	@RequestParams(required = [], optional = "fr.slixe.exchange.structure.Market:market")
+	def completedOrders(Optional<Market> market, User user)
+	{
+		def orders
+
+		if (market.isPresent()) {
+			orders = db.getCompletedOrders(user, market.get())
+		} else {
+			orders = db.getCompletedOrders(user)
+		}
+
+		[
+			completedOrders: orders
+		]
+	}
+
 	@RequestParams(required = ["market"])
 	def details(Market market)
 	{
@@ -55,7 +71,7 @@ public class MarketController extends Controller {
 
 	@JsonBody
 	@RequestParams(required = ["market", "amount", "price", "type"])
-	def createOrder(Market market, BigDecimal amount, BigDecimal price, Type type, User user)
+	def createOrder(Market market, BigDecimal amount, BigDecimal price, OrderType type, User user)
 	{
 		if (amount.signum() != 1 || price.signum() != 1) {
 			throw new InvalidParameterException("Values must be positive")
